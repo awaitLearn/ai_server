@@ -4,6 +4,7 @@ from PIL import Image
 import cv2
 import numpy as np
 import time
+import gc
 
 class LocalVideoGenerator:
     def __init__(self, model_type="svd"):
@@ -37,6 +38,12 @@ class LocalVideoGenerator:
         
         print("✅ Модель загружена")
 
+    def _clear_memory(self):
+        """Очистка памяти CUDA"""
+        torch.cuda.empty_cache()
+        gc.collect()
+        print("🧹 Память очищена")
+
     def generate_from_image(self, image_path: str, prompt: str, duration: int = 10) -> str:
         """Генерируем видео из изображения"""
         print(f"🎬 Генерируем {duration} сек видео...")
@@ -45,28 +52,33 @@ class LocalVideoGenerator:
         image = Image.open(image_path).convert("RGB")
         image = image.resize((1024, 576))  # 16:9
         
-        if self.model_type == "svd":
-            return self._generate_svd(image, duration)
-        else:
-            return self._generate_animatediff(image, prompt, duration)
+        try:
+            if self.model_type == "svd":
+                return self._generate_svd(image, duration)
+            else:
+                return self._generate_animatediff(image, prompt, duration)
+        finally:
+            self._clear_memory()
 
     def _generate_svd(self, image: Image.Image, duration: int) -> str:
         """Генерация через Stable Video Diffusion"""
-        # Конвертируем длительность в кадры (25fps)
-        num_frames = min(100, duration * 25)
+        # Конвертируем длительность в кадры (уменьшаем FPS для экономии памяти)
+        num_frames = min(75, duration * 15)  # Уменьшили с 25 до 15 FPS
         
-        # Генерируем видео
+        # Генерируем видео с оптимизированными параметрами
         video_frames = self.pipeline(
             image,
             num_frames=num_frames,
-            num_inference_steps=25,
-            motion_bucket_id=180,
-            fps=25
+            num_inference_steps=20,  # Уменьшили количество шагов
+            motion_bucket_id=150,    # Уменьшили motion для меньшей сложности
+            fps=15,                  # Уменьшили FPS
+            decode_chunk_size=4,     # Добавим chunking для декодирования
+            generator=torch.Generator(self.device).manual_seed(int(time.time()))
         ).frames[0]
         
         # Сохраняем результат
         output_path = f"svd_video_{int(time.time())}.mp4"
-        self._save_video(video_frames, output_path, fps=25)
+        self._save_video(video_frames, output_path, fps=15)
         
         return output_path
 
@@ -77,24 +89,29 @@ class LocalVideoGenerator:
         base_frame = self.sdxl_pipeline(
             prompt=prompt,
             image=image,
-            strength=0.7,
-            num_inference_steps=30
+            strength=0.6,           # Уменьшили strength
+            num_inference_steps=25,  # Уменьшили шаги
+            guidance_scale=7.0       # Уменьшили guidance scale
         ).images[0]
+        
+        # Очищаем память после генерации кадра
+        self._clear_memory()
         
         # Затем анимируем через AnimateDiff
         print("🎬 Анимируем кадр...")
-        num_frames = min(120, duration * 24)
+        num_frames = min(80, duration * 20)  # Уменьшили количество кадров
         
         video_frames = self.animate_pipeline(
             prompt=prompt,
             image=base_frame,
             num_frames=num_frames,
-            num_inference_steps=25,
-            fps=24
+            num_inference_steps=20,  # Уменьшили шаги
+            fps=20,                  # Уменьшили FPS
+            guidance_scale=7.0       # Уменьшили guidance scale
         ).frames[0]
         
         output_path = f"animatediff_video_{int(time.time())}.mp4"
-        self._save_video(video_frames, output_path, fps=24)
+        self._save_video(video_frames, output_path, fps=20)
         
         return output_path
 
