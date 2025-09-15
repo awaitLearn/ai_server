@@ -162,8 +162,9 @@ if __name__ == "__main__":
     # Генерируем видео
     result = generator.generate_from_image(
         image_path="face.jpg",
-        prompt="beautiful man, cinematic portrait, high quality",
-        duration=10  # секунд
+        prompt="I leave the room and then find myself in the world of ANIME NARUTO, and start fighting with enemies in a beautiful field with flowers in rainy weather",
+        duration=30  # секунд
     )
     
     print(f"✅ Видео готово: {result}")
+
