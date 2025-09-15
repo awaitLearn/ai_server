@@ -116,12 +116,15 @@ class LocalVideoGenerator:
         return output_path
 
     def _save_video(self, frames, output_path: str, fps: int = 24):
-        """Сохраняем кадры как видео"""
+        """Сохраняем кадры как видео с совместимым кодеком"""
         if not frames:
             return None
         
         height, width = frames[0].size
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        
+        # Используем совместимый кодек h264 вместо mp4v
+        fourcc = cv2.VideoWriter_fourcc(*'h264')  # или 'avc1'
+        
         out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
         
         for frame in frames:
