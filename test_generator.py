@@ -6,6 +6,7 @@ import numpy as np
 import time
 import gc
 import os
+import imageio
 
 class LocalVideoGenerator:
     def __init__(self, model_type="svd"):
@@ -115,46 +116,36 @@ class LocalVideoGenerator:
         self._save_video(video_frames, output_path, fps=20)
         
         return output_path
-        
+
     def _save_video(self, frames, output_path: str, fps: int = 24):
-        """Сохраняем кадры как видео"""
+        """Сохраняем кадры как видео с помощью imageio"""
         if not frames:
             print("❌ Нет кадров для сохранения")
             return None
         
         try:
-            height, width = frames[0].size
-            print(f"📏 Размер кадра: {width}x{height}")
+            # Конвертируем PIL Image в numpy arrays
+            print("💾 Сохраняем видео...")
+            frames_np = [np.array(frame) for frame in frames]
             
-            # Пробуем разные кодеки
-            codecs = ['mp4v', 'XVID', 'MJPG', 'avc1']
+            # Сохраняем с помощью imageio
+            with imageio.get_writer(output_path, fps=fps, codec='libx264') as writer:
+                for frame in frames_np:
+                    writer.append_data(frame)
             
-            for codec in codecs:
-                try:
-                    fourcc = cv2.VideoWriter_fourcc(*codec)
-                    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-                    
-                    if out.isOpened():
-                        print(f"✅ Используем кодек: {codec}")
-                        for frame in frames:
-                            out.write(cv2.cvtColor(np.array(frame), cv2.COLOR_RGB2BGR))
-                        out.release()
-                        
-                        # Проверяем что файл создался
-                        if os.path.exists(output_path):
-                            file_size = os.path.getsize(output_path)
-                            print(f"✅ Видео сохранено: {output_path} ({file_size} bytes)")
-                            return output_path
-                        else:
-                            print("❌ Файл не создался")
-                            continue
-                    else:
-                        print(f"❌ Кодек {codec} не поддерживается")
-                        
-                except Exception as e:
-                    print(f"❌ Ошибка с кодеком {codec}: {e}")
+            # Проверяем размер файла
+            if os.path.exists(output_path):
+                file_size = os.path.getsize(output_path)
+                print(f"✅ Видео сохранено: {output_path} ({file_size} bytes)")
+                return output_path
+            else:
+                print("❌ Файл не создался")
+                return None
+                
+        except Exception as e:
+            print(f"❌ Ошибка сохранения: {e}")
             
-            # Сохраняем как PNG если видео не получилось
+            # Fallback: сохраняем как PNG изображения
             print("💾 Сохраняем кадры как PNG...")
             os.makedirs("frames", exist_ok=True)
             for i, frame in enumerate(frames):
@@ -162,10 +153,6 @@ class LocalVideoGenerator:
                 frame.save(frame_path)
             print("✅ Кадры сохранены в папку 'frames/'")
             return "frames/"
-            
-        except Exception as e:
-            print(f"❌ Критическая ошибка сохранения: {e}")
-            return None
 
 # Пример использования
 if __name__ == "__main__":
@@ -180,4 +167,3 @@ if __name__ == "__main__":
     )
     
     print(f"✅ Видео готово: {result}")
-
