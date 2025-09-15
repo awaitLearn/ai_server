@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import time
 import gc
+import os
 
 class LocalVideoGenerator:
     def __init__(self, model_type="svd"):
@@ -114,7 +115,7 @@ class LocalVideoGenerator:
         self._save_video(video_frames, output_path, fps=20)
         
         return output_path
-
+        
     def _save_video(self, frames, output_path: str, fps: int = 24):
         """Сохраняем кадры как видео"""
         if not frames:
@@ -126,7 +127,7 @@ class LocalVideoGenerator:
             print(f"📏 Размер кадра: {width}x{height}")
             
             # Пробуем разные кодеки
-            codecs = ['mp4v', 'XVID', 'MJPG']
+            codecs = ['mp4v', 'XVID', 'MJPG', 'avc1']
             
             for codec in codecs:
                 try:
@@ -141,12 +142,15 @@ class LocalVideoGenerator:
                         
                         # Проверяем что файл создался
                         if os.path.exists(output_path):
-                            print(f"✅ Видео сохранено: {output_path}")
+                            file_size = os.path.getsize(output_path)
+                            print(f"✅ Видео сохранено: {output_path} ({file_size} bytes)")
                             return output_path
                         else:
                             print("❌ Файл не создался")
-                            break
-                            
+                            continue
+                    else:
+                        print(f"❌ Кодек {codec} не поддерживается")
+                        
                 except Exception as e:
                     print(f"❌ Ошибка с кодеком {codec}: {e}")
             
@@ -154,7 +158,9 @@ class LocalVideoGenerator:
             print("💾 Сохраняем кадры как PNG...")
             os.makedirs("frames", exist_ok=True)
             for i, frame in enumerate(frames):
-                frame.save(f"frames/frame_{i:04d}.png")
+                frame_path = f"frames/frame_{i:04d}.png"
+                frame.save(frame_path)
+            print("✅ Кадры сохранены в папку 'frames/'")
             return "frames/"
             
         except Exception as e:
@@ -174,3 +180,4 @@ if __name__ == "__main__":
     )
     
     print(f"✅ Видео готово: {result}")
+
